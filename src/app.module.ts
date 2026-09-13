@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { dataSourceOptions } from './database/data-source';
+import { AuthModule } from './modules/auth.module';
 import { UserModule } from './modules/user.module';
 
 @Module({
@@ -9,6 +10,7 @@ import { UserModule } from './modules/user.module';
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot(dataSourceOptions),
     UserModule,
+    AuthModule,
   ],
   controllers: [],
   providers: [],
