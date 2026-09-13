@@ -10,7 +10,7 @@ async function bootstrap(): Promise<void> {
   const port = Number(process.env.PORT) || DEFAULT_PORT;
 
   await application.listen(port);
-  Logger.log(`MedClinic API em execucao na porta ${port}`, 'Bootstrap');
+  Logger.log(`MedClinic API running on port ${port}`, 'Bootstrap');
 }
 
 void bootstrap();
