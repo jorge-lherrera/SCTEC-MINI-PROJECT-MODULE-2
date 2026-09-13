@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './middlewares/all-exceptions.filter';
 
 const DEFAULT_PORT = 3000;
 
@@ -16,6 +17,7 @@ async function bootstrap(): Promise<void> {
       transform: true,
     }),
   );
+  application.useGlobalFilters(new AllExceptionsFilter());
 
   await application.listen(port);
   Logger.log(`MedClinic API running on port ${port}`, 'Bootstrap');
