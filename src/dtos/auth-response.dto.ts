@@ -1,11 +1,7 @@
-import { UserResponseDto } from './user-response.dto';
-
 export class AuthResponseDto {
-  public readonly token: string;
-  public readonly user: UserResponseDto;
+  public readonly accessToken: string;
 
-  constructor(token: string, user: UserResponseDto) {
-    this.token = token;
-    this.user = user;
+  constructor(accessToken: string) {
+    this.accessToken = accessToken;
   }
 }

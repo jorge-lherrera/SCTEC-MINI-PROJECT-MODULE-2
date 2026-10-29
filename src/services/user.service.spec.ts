@@ -10,7 +10,6 @@ function createUserRepositoryDouble() {
   return {
     create: vi.fn(),
     findById: vi.fn(),
-    findByEmail: vi.fn(),
     findByEmailWithPassword: vi.fn(),
     existsByEmail: vi.fn(),
   };
@@ -19,7 +18,7 @@ function createUserRepositoryDouble() {
 function persist(data: CreatableUser): User {
   return {
     ...data,
-    id: '0b5c8d2e-6f4a-4b3c-8d1e-2f3a4b5c6d7e',
+    id: 2,
     createdAt: new Date('2026-10-20T14:03:11.000Z'),
   };
 }
@@ -33,55 +32,45 @@ describe('UserService', () => {
     userService = new UserService(userRepository as unknown as UserRepository);
   });
 
-  describe('register', () => {
+  describe('create', () => {
     it('recusa e-mail já cadastrado sem criar usuário', async () => {
       userRepository.existsByEmail.mockResolvedValue(true);
 
       await expect(
-        userService.register({
-          name: 'Joana',
+        userService.create({
+          name: 'Joana Secretária',
           email: 'joana@medclinic.com',
           password: 'SenhaForte@123',
+          roles: [UserRole.SECRETARY],
         }),
       ).rejects.toMatchObject({ code: ErrorCode.EMAIL_JA_CADASTRADO });
       expect(userRepository.create).not.toHaveBeenCalled();
     });
 
-    it('grava a senha como hash, normaliza os dados e usa o perfil padrão', async () => {
+    it('grava a senha como hash, normaliza o e-mail e não repete perfis', async () => {
       userRepository.existsByEmail.mockResolvedValue(false);
       userRepository.create.mockImplementation(async (data: CreatableUser) =>
         persist(data),
       );
 
-      const response = await userService.register({
-        name: '  Joana Secretária ',
+      const response = await userService.create({
+        name: 'Joana Secretária',
         email: ' Joana@MedClinic.com ',
         password: 'SenhaForte@123',
+        roles: [UserRole.SECRETARY, UserRole.ADMIN, UserRole.SECRETARY],
       });
 
       const saved: CreatableUser = userRepository.create.mock.calls[0][0];
-      expect(saved.name).toBe('Joana Secretária');
       expect(saved.email).toBe('joana@medclinic.com');
-      expect(saved.role).toBe(UserRole.ATENDENTE);
+      expect(saved.roles).toEqual([UserRole.SECRETARY, UserRole.ADMIN]);
       expect(saved.password).not.toBe('SenhaForte@123');
       expect(await verifyPassword('SenhaForte@123', saved.password)).toBe(true);
-      expect(response).not.toHaveProperty('password');
-    });
-
-    it('respeita o perfil informado', async () => {
-      userRepository.existsByEmail.mockResolvedValue(false);
-      userRepository.create.mockImplementation(async (data: CreatableUser) =>
-        persist(data),
-      );
-
-      const response = await userService.register({
-        name: 'Administrador',
-        email: 'admin@medclinic.com',
-        password: 'SenhaForte@123',
-        role: UserRole.ADMINISTRADOR,
+      expect(response).toEqual({
+        id: 2,
+        name: 'Joana Secretária',
+        email: 'joana@medclinic.com',
+        roles: [UserRole.SECRETARY, UserRole.ADMIN],
       });
-
-      expect(response.role).toBe(UserRole.ADMINISTRADOR);
     });
   });
 
@@ -89,25 +78,29 @@ describe('UserService', () => {
     it('lança recurso não encontrado quando o usuário não existe', async () => {
       userRepository.findById.mockResolvedValue(null);
 
-      await expect(userService.findById('inexistente')).rejects.toMatchObject({
+      await expect(userService.findById(99)).rejects.toMatchObject({
         code: ErrorCode.RECURSO_NAO_ENCONTRADO,
       });
     });
 
-    it('devolve o usuário sem a senha', async () => {
+    it('devolve o usuário com os perfis e sem a senha', async () => {
       userRepository.findById.mockResolvedValue(
         persist({
-          name: 'Joana',
+          name: 'Joana Secretária',
           email: 'joana@medclinic.com',
           password: 'hash',
-          role: UserRole.ATENDENTE,
+          roles: [UserRole.SECRETARY],
         }),
       );
 
-      const response = await userService.findById('0b5c8d2e-6f4a-4b3c-8d1e-2f3a4b5c6d7e');
+      const response = await userService.findById(2);
 
-      expect(response.email).toBe('joana@medclinic.com');
-      expect(response).not.toHaveProperty('password');
+      expect(response).toEqual({
+        id: 2,
+        name: 'Joana Secretária',
+        email: 'joana@medclinic.com',
+        roles: [UserRole.SECRETARY],
+      });
     });
   });
 });

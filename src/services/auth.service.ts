@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthResponseDto } from '../dtos/auth-response.dto';
 import { LoginDto } from '../dtos/login.dto';
-import { UserResponseDto } from '../dtos/user-response.dto';
 import { User } from '../entities/user.entity';
 import { DomainError } from '../errors/domain.error';
 import { ErrorCode } from '../errors/error-code.enum';
@@ -20,10 +19,9 @@ export class AuthService {
 
   public async login(data: LoginDto): Promise<AuthResponseDto> {
     const user = await this.findAuthenticatedUser(data);
-    const payload: JwtPayload = { sub: user.id, role: user.role };
-    const token = await this.jwtService.signAsync(payload);
+    const payload: JwtPayload = { sub: String(user.id), roles: user.roles };
 
-    return new AuthResponseDto(token, new UserResponseDto(user));
+    return new AuthResponseDto(await this.jwtService.signAsync(payload));
   }
 
   private async findAuthenticatedUser(data: LoginDto): Promise<User> {
