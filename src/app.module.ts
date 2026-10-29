@@ -1,11 +1,10 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { dataSourceOptions } from './database/data-source';
-import { UserRole } from './entities/user-role.enum';
-import { AuthMiddleware } from './middlewares/auth.middleware';
-import { requireRoles } from './middlewares/role.middleware';
-import { AdminModule } from './modules/admin.module';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
 import { AuthModule } from './modules/auth.module';
 import { HealthModule } from './modules/health.module';
 import { UserModule } from './modules/user.module';
@@ -16,14 +15,11 @@ import { UserModule } from './modules/user.module';
     TypeOrmModule.forRoot(dataSourceOptions),
     UserModule,
     AuthModule,
-    AdminModule,
     HealthModule,
   ],
-  providers: [AuthMiddleware],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+  ],
 })
-export class AppModule implements NestModule {
-  public configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(AuthMiddleware).forRoutes('users', 'admin');
-    consumer.apply(requireRoles(UserRole.ADMINISTRADOR)).forRoutes('admin');
-  }
-}
+export class AppModule {}
