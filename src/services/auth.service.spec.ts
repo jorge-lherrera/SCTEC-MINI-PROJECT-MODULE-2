@@ -14,7 +14,6 @@ function createUserRepositoryDouble() {
   return {
     create: vi.fn(),
     findById: vi.fn(),
-    findByEmail: vi.fn(),
     findByEmailWithPassword: vi.fn(),
     existsByEmail: vi.fn(),
   };
@@ -22,11 +21,11 @@ function createUserRepositoryDouble() {
 
 async function buildStoredUser(): Promise<User> {
   return {
-    id: '7d6f5c1e-3a2b-4c8d-9e0f-1a2b3c4d5e6f',
-    name: 'Administrador',
-    email: 'admin@medclinic.com',
+    id: 7,
+    name: 'Dra. Helena Souza',
+    email: 'helena@medclinic.com',
     password: await hashPassword(PLAIN_PASSWORD),
-    role: UserRole.ADMINISTRADOR,
+    roles: [UserRole.DOCTOR, UserRole.ADMIN],
     createdAt: new Date('2026-10-20T14:03:11.000Z'),
   };
 }
@@ -47,7 +46,7 @@ describe('AuthService.login', () => {
     );
   });
 
-  it('recusa e-mail inexistente com erro de autenticação', async () => {
+  it('recusa e-mail inexistente com credenciais inválidas', async () => {
     userRepository.findByEmailWithPassword.mockResolvedValue(null);
 
     await expect(
@@ -61,26 +60,29 @@ describe('AuthService.login', () => {
     );
 
     await expect(
-      authService.login({ email: 'admin@medclinic.com', password: 'senha-errada' }),
+      authService.login({ email: 'helena@medclinic.com', password: 'senha-errada' }),
     ).rejects.toMatchObject({ code: ErrorCode.CREDENCIAIS_INVALIDAS });
   });
 
-  it('autentica comparando a senha com o hash e emite token com id e perfil', async () => {
+  it('autentica comparando a senha com o hash e emite token com id e perfis', async () => {
     const storedUser = await buildStoredUser();
     userRepository.findByEmailWithPassword.mockResolvedValue(storedUser);
 
     const response = await authService.login({
-      email: '  Admin@MedClinic.com ',
+      email: '  Helena@MedClinic.com ',
       password: PLAIN_PASSWORD,
     });
 
     expect(storedUser.password).not.toBe(PLAIN_PASSWORD);
     expect(userRepository.findByEmailWithPassword).toHaveBeenCalledWith(
-      'admin@medclinic.com',
+      'helena@medclinic.com',
     );
-    const payload = await jwtService.verifyAsync<JwtPayload>(response.token);
-    expect(payload.sub).toBe(storedUser.id);
-    expect(payload.role).toBe(UserRole.ADMINISTRADOR);
-    expect(response.user).not.toHaveProperty('password');
+    expect(Object.keys(response)).toEqual(['accessToken']);
+    const payload = await jwtService.verifyAsync<JwtPayload & { exp: number }>(
+      response.accessToken,
+    );
+    expect(payload.sub).toBe('7');
+    expect(payload.roles).toEqual([UserRole.DOCTOR, UserRole.ADMIN]);
+    expect(payload.exp).toBeGreaterThan(Date.now() / 1000);
   });
 });
