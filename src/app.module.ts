@@ -7,6 +7,7 @@ import { AuthMiddleware } from './middlewares/auth.middleware';
 import { requireRoles } from './middlewares/role.middleware';
 import { AdminModule } from './modules/admin.module';
 import { AuthModule } from './modules/auth.module';
+import { HealthModule } from './modules/health.module';
 import { UserModule } from './modules/user.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { UserModule } from './modules/user.module';
     UserModule,
     AuthModule,
     AdminModule,
+    HealthModule,
   ],
   providers: [AuthMiddleware],
 })
