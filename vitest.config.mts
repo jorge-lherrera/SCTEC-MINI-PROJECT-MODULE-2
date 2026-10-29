@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: ['src/**/*.spec.ts'],
+    setupFiles: ['reflect-metadata'],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.service.ts'],

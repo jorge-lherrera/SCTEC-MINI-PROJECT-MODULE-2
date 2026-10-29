@@ -5,7 +5,7 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './middlewares/all-exceptions.filter';
 import { requireIntegerEnvironmentVariable } from './utils/environment.util';
 
-const API_PREFIX = 'api/v1';
+const API_PREFIX = '/api/v1';
 const LISTEN_ADDRESS = '0.0.0.0';
 
 async function bootstrap(): Promise<void> {

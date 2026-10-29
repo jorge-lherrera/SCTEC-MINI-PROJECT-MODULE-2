@@ -1,10 +1,8 @@
-import {
-  Injectable,
-  NestMiddleware,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, NestMiddleware } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { NextFunction, Request, Response } from 'express';
+import { DomainError } from '../errors/domain.error';
+import { ErrorCode } from '../errors/error-code.enum';
 import { JwtPayload } from '../utils/jwt-payload.interface';
 
 const BEARER_PREFIX = 'Bearer ';
@@ -30,7 +28,10 @@ export class AuthMiddleware implements NestMiddleware {
     const header = request.headers.authorization;
 
     if (header === undefined || !header.startsWith(BEARER_PREFIX)) {
-      throw new UnauthorizedException('Authentication token is missing');
+      throw new DomainError(
+        ErrorCode.NAO_AUTENTICADO,
+        'Token de autenticação ausente.',
+      );
     }
 
     return header.slice(BEARER_PREFIX.length).trim();
@@ -40,8 +41,9 @@ export class AuthMiddleware implements NestMiddleware {
     try {
       return await this.jwtService.verifyAsync<JwtPayload>(token);
     } catch {
-      throw new UnauthorizedException(
-        'Invalid or expired authentication token',
+      throw new DomainError(
+        ErrorCode.NAO_AUTENTICADO,
+        'Token de autenticação inválido ou expirado.',
       );
     }
   }

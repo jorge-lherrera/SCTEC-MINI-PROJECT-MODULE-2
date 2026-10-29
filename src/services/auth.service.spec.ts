@@ -1,8 +1,8 @@
-import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../entities/user.entity';
 import { UserRole } from '../entities/user-role.enum';
+import { ErrorCode } from '../errors/error-code.enum';
 import { UserRepository } from '../repositories/user.repository';
 import { hashPassword } from '../utils/hash.util';
 import { JwtPayload } from '../utils/jwt-payload.interface';
@@ -52,7 +52,7 @@ describe('AuthService.login', () => {
 
     await expect(
       authService.login({ email: 'ninguem@medclinic.com', password: PLAIN_PASSWORD }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    ).rejects.toMatchObject({ code: ErrorCode.CREDENCIAIS_INVALIDAS });
   });
 
   it('recusa senha que não confere com o hash armazenado', async () => {
@@ -62,7 +62,7 @@ describe('AuthService.login', () => {
 
     await expect(
       authService.login({ email: 'admin@medclinic.com', password: 'senha-errada' }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    ).rejects.toMatchObject({ code: ErrorCode.CREDENCIAIS_INVALIDAS });
   });
 
   it('autentica comparando a senha com o hash e emite token com id e perfil', async () => {

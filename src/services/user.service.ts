@@ -1,11 +1,9 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { UserResponseDto } from '../dtos/user-response.dto';
 import { UserRole } from '../entities/user-role.enum';
+import { DomainError } from '../errors/domain.error';
+import { ErrorCode } from '../errors/error-code.enum';
 import { UserRepository } from '../repositories/user.repository';
 import { normalizeEmail } from '../utils/email.util';
 import { hashPassword } from '../utils/hash.util';
@@ -18,7 +16,10 @@ export class UserService {
     const email = normalizeEmail(data.email);
 
     if (await this.userRepository.existsByEmail(email)) {
-      throw new ConflictException('Email already registered');
+      throw new DomainError(
+        ErrorCode.EMAIL_JA_CADASTRADO,
+        'E-mail já cadastrado.',
+      );
     }
 
     const user = await this.userRepository.create({
@@ -35,7 +36,10 @@ export class UserService {
     const user = await this.userRepository.findById(id);
 
     if (user === null) {
-      throw new NotFoundException('User not found');
+      throw new DomainError(
+        ErrorCode.RECURSO_NAO_ENCONTRADO,
+        'Usuário não encontrado.',
+      );
     }
 
     return new UserResponseDto(user);
