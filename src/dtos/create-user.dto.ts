@@ -1,15 +1,19 @@
+import { Transform } from 'class-transformer';
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsEmail,
   IsEnum,
   IsNotEmpty,
-  IsOptional,
   IsString,
   MaxLength,
   MinLength,
 } from 'class-validator';
 import { UserRole } from '../entities/user-role.enum';
+import { trimString } from '../utils/string.util';
 
 export class CreateUserDto {
+  @Transform(({ value }) => trimString(value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
@@ -24,7 +28,8 @@ export class CreateUserDto {
   @MaxLength(64)
   password: string;
 
-  @IsOptional()
-  @IsEnum(UserRole)
-  role?: UserRole;
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsEnum(UserRole, { each: true })
+  roles: UserRole[];
 }
