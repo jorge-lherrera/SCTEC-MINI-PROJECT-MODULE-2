@@ -8,6 +8,8 @@
     "build": "nest build",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
     "typeorm": "typeorm-ts-node-commonjs -d src/database/data-source.ts",
     "migration:generate": "npm run typeorm -- migration:generate",
     "migration:run": "npm run typeorm -- migration:run",
@@ -37,7 +39,9 @@
     "@nestjs/schematics": "^12.0.0",
     "@types/express": "^5.0.6",
     "@types/node": "^26.5.1",
+    "@vitest/coverage-v8": "^4.1.11",
     "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
   }
 }
