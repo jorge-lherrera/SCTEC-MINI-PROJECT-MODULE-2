@@ -1,9 +1,11 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthResponseDto } from '../dtos/auth-response.dto';
 import { LoginDto } from '../dtos/login.dto';
 import { UserResponseDto } from '../dtos/user-response.dto';
 import { User } from '../entities/user.entity';
+import { DomainError } from '../errors/domain.error';
+import { ErrorCode } from '../errors/error-code.enum';
 import { UserRepository } from '../repositories/user.repository';
 import { normalizeEmail } from '../utils/email.util';
 import { verifyPassword } from '../utils/hash.util';
@@ -28,12 +30,14 @@ export class AuthService {
     const email = normalizeEmail(data.email);
     const user = await this.userRepository.findByEmailWithPassword(email);
 
-    if (user === null) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    if (!(await verifyPassword(data.password, user.password))) {
-      throw new UnauthorizedException('Invalid credentials');
+    if (
+      user === null ||
+      !(await verifyPassword(data.password, user.password))
+    ) {
+      throw new DomainError(
+        ErrorCode.CREDENCIAIS_INVALIDAS,
+        'E-mail ou senha inválidos.',
+      );
     }
 
     return user;

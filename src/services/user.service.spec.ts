@@ -1,7 +1,7 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { User } from '../entities/user.entity';
 import { UserRole } from '../entities/user-role.enum';
+import { ErrorCode } from '../errors/error-code.enum';
 import { CreatableUser, UserRepository } from '../repositories/user.repository';
 import { verifyPassword } from '../utils/hash.util';
 import { UserService } from './user.service';
@@ -43,7 +43,7 @@ describe('UserService', () => {
           email: 'joana@medclinic.com',
           password: 'SenhaForte@123',
         }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      ).rejects.toMatchObject({ code: ErrorCode.EMAIL_JA_CADASTRADO });
       expect(userRepository.create).not.toHaveBeenCalled();
     });
 
@@ -89,9 +89,9 @@ describe('UserService', () => {
     it('lança recurso não encontrado quando o usuário não existe', async () => {
       userRepository.findById.mockResolvedValue(null);
 
-      await expect(userService.findById('inexistente')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(userService.findById('inexistente')).rejects.toMatchObject({
+        code: ErrorCode.RECURSO_NAO_ENCONTRADO,
+      });
     });
 
     it('devolve o usuário sem a senha', async () => {
