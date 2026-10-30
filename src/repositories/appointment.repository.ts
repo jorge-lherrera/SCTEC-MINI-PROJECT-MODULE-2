@@ -51,6 +51,23 @@ export class AppointmentRepository {
     return this.repository.findOneBy({ id });
   }
 
+  public async lockById(
+    id: number,
+    manager: EntityManager,
+  ): Promise<Appointment | null> {
+    return manager.getRepository(Appointment).findOne({
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  public async save(
+    appointment: Appointment,
+    manager: EntityManager,
+  ): Promise<Appointment> {
+    return manager.getRepository(Appointment).save(appointment);
+  }
+
   public async findPage(
     filter: AppointmentFilter,
     window: PageWindow,
