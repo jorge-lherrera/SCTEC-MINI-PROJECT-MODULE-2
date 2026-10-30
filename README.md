@@ -389,6 +389,24 @@ Erros inesperados devolvem apenas `Internal server error`: o detalhe técnico é
 servidor e nunca exposto ao cliente. Falhas de conexão com o banco não interrompem a execução — a
 aplicação continua respondendo e volta ao normal assim que o banco é restabelecido.
 
+## Decisões de implementação
+
+### Validação do CPF
+
+O CPF é validado apenas no formato: exatamente 11 dígitos numéricos, sem pontos, traço ou espaços.
+Os dígitos verificadores **não** são conferidos, por decisão deliberada:
+
+- O contrato da seção 4.9.3 define o `400 DADOS_INVALIDOS` só para CPF com tamanho diferente de 11
+  ou com caractere não numérico; não menciona dígito verificador.
+- O próprio exemplo do enunciado, `12345678901`, tem dígitos verificadores inválidos (pelo cálculo
+  oficial o último dígito seria `9`). Conferir os dígitos recusaria o exemplo do contrato.
+- A bateria de aceitação cadastra pacientes antes de testar agendamentos e prontuário. Recusar CPFs
+  no formato do exemplo derrubaria em cascata todos esses casos.
+
+A unicidade é garantida no banco por um índice único parcial (`UQ_patients_cpf`, só entre pacientes
+não removidos). Como a remoção de paciente é lógica, o CPF de um paciente removido pode ser
+cadastrado de novo, e o histórico do registro antigo continua preservado.
+
 ## Segurança
 
 - Senhas armazenadas com hash `bcrypt` (fator de custo 10) e salt individual por usuário; não há
