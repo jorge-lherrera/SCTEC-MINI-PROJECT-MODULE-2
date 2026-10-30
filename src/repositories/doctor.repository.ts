@@ -44,6 +44,20 @@ export class DoctorRepository {
     });
   }
 
+  public async lockById(
+    id: number,
+    manager: EntityManager,
+  ): Promise<Doctor | null> {
+    return manager.getRepository(Doctor).findOne({
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
+  public async existsById(id: number): Promise<boolean> {
+    return this.repository.existsBy({ id });
+  }
+
   public async existsByCrm(crm: string): Promise<boolean> {
     return this.repository.existsBy({ crm });
   }

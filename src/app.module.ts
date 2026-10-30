@@ -10,6 +10,7 @@ import { DoctorModule } from './modules/doctor.module';
 import { HealthModule } from './modules/health.module';
 import { PatientModule } from './modules/patient.module';
 import { UserModule } from './modules/user.module';
+import { WorkScheduleModule } from './modules/work-schedule.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { UserModule } from './modules/user.module';
     UserModule,
     PatientModule,
     DoctorModule,
+    WorkScheduleModule,
     AuthModule,
     HealthModule,
   ],
