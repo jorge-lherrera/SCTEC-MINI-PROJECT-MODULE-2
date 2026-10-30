@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, IsNull, Repository } from 'typeorm';
+import { EntityManager, ILike, IsNull, Repository } from 'typeorm';
 import { PATIENT_CPF_UNIQUE_INDEX, Patient } from '../entities/patient.entity';
 import { DomainError } from '../errors/domain.error';
 import { ErrorCode } from '../errors/error-code.enum';
@@ -38,6 +38,16 @@ export class PatientRepository {
 
   public async findById(id: number): Promise<Patient | null> {
     return this.repository.findOneBy({ id });
+  }
+
+  public async lockById(
+    id: number,
+    manager: EntityManager,
+  ): Promise<Patient | null> {
+    return manager.getRepository(Patient).findOne({
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
   }
 
   public async existsByCpf(cpf: string): Promise<boolean> {

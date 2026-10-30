@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
+import { MAX_IDENTITY_VALUE } from '../utils/identity.util';
 
-const MAX_IDENTITY_VALUE = 2_147_483_647;
 const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
 
 @Injectable()
