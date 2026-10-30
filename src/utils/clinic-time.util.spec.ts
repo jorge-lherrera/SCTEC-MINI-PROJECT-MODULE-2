@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { startOfClinicDay, toClinicLocalTime } from './clinic-time.util';
+import {
+  calendarDaysBetween,
+  startOfClinicDay,
+  toClinicLocalTime,
+} from './clinic-time.util';
 
 describe('toClinicLocalTime', () => {
   it.each([
@@ -24,5 +28,17 @@ describe('startOfClinicDay', () => {
     ['2018-02-17', 1, '2018-02-18T03:00:00.000Z'],
   ])('início do dia %s deslocado %i dia(s) é %s', (date, dayOffset, expected) => {
     expect(startOfClinicDay(date, dayOffset).toISOString()).toBe(expected);
+  });
+});
+
+describe('calendarDaysBetween', () => {
+  it.each([
+    ['2026-10-12', '2026-10-12', 0],
+    ['2026-10-12', '2026-10-16', 4],
+    ['2026-10-01', '2026-11-01', 31],
+    ['2028-02-28', '2028-03-01', 2],
+    ['2026-10-16', '2026-10-12', -4],
+  ])('de %s a %s são %i dia(s)', (from, to, days) => {
+    expect(calendarDaysBetween(from, to)).toBe(days);
   });
 });
