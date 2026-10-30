@@ -2,16 +2,24 @@ import { Injectable } from '@nestjs/common';
 import { TransactionRunner } from '../database/transaction-runner';
 import { AppointmentResponseDto } from '../dtos/appointment-response.dto';
 import { CreateAppointmentDto } from '../dtos/create-appointment.dto';
+import { ListAppointmentsQueryDto } from '../dtos/list-appointments-query.dto';
+import { PaginatedResponseDto } from '../dtos/paginated-response.dto';
 import { AppointmentStatus } from '../entities/appointment-status.enum';
+import { UserRole } from '../entities/user-role.enum';
 import { WorkShift } from '../entities/work-shift.entity';
 import { DomainError } from '../errors/domain.error';
 import { ErrorCode } from '../errors/error-code.enum';
-import { AppointmentRepository } from '../repositories/appointment.repository';
+import {
+  AppointmentFilter,
+  AppointmentRepository,
+} from '../repositories/appointment.repository';
 import { DoctorRepository } from '../repositories/doctor.repository';
 import { PatientRepository } from '../repositories/patient.repository';
 import { WorkShiftRepository } from '../repositories/work-shift.repository';
-import { toClinicLocalTime } from '../utils/clinic-time.util';
+import { AuthenticatedUser } from '../types/authenticated-user.interface';
+import { startOfClinicDay, toClinicLocalTime } from '../utils/clinic-time.util';
 import { clockTimeToMinutes } from '../utils/clock-time.util';
+import { toPageWindow } from '../utils/pagination.util';
 
 const MILLISECONDS_PER_MINUTE = 60_000;
 
@@ -85,6 +93,94 @@ export class AppointmentService {
     });
 
     return new AppointmentResponseDto(appointment);
+  }
+
+  public async findPage(
+    query: ListAppointmentsQueryDto,
+    user: AuthenticatedUser,
+  ): Promise<PaginatedResponseDto<AppointmentResponseDto>> {
+    if (
+      query.from !== undefined &&
+      query.to !== undefined &&
+      query.from > query.to
+    ) {
+      throw new DomainError(
+        ErrorCode.DADOS_INVALIDOS,
+        'A data inicial não pode ser posterior à data final.',
+      );
+    }
+
+    const filter: AppointmentFilter = {
+      doctorId: query.doctorId,
+      patientId: query.patientId,
+      status: query.status,
+      startsFrom:
+        query.from === undefined ? undefined : startOfClinicDay(query.from),
+      startsBefore:
+        query.to === undefined ? undefined : startOfClinicDay(query.to, 1),
+    };
+
+    if (this.isRestrictedToOwnAppointments(user)) {
+      const ownDoctorId = await this.findOwnDoctorId(user);
+
+      if (
+        ownDoctorId === null ||
+        (query.doctorId !== undefined && query.doctorId !== ownDoctorId)
+      ) {
+        return new PaginatedResponseDto([], 0, query);
+      }
+
+      filter.doctorId = ownDoctorId;
+    }
+
+    const [appointments, total] = await this.appointmentRepository.findPage(
+      filter,
+      toPageWindow(query),
+    );
+
+    return new PaginatedResponseDto(
+      appointments.map((appointment) => new AppointmentResponseDto(appointment)),
+      total,
+      query,
+    );
+  }
+
+  public async findById(
+    id: number,
+    user: AuthenticatedUser,
+  ): Promise<AppointmentResponseDto> {
+    const appointment = await this.appointmentRepository.findById(id);
+
+    if (appointment === null) {
+      throw this.notFound('Agendamento não encontrado.');
+    }
+
+    if (
+      this.isRestrictedToOwnAppointments(user) &&
+      (await this.findOwnDoctorId(user)) !== appointment.doctorId
+    ) {
+      throw new DomainError(
+        ErrorCode.ACESSO_NEGADO,
+        'O agendamento pertence a outro médico.',
+      );
+    }
+
+    return new AppointmentResponseDto(appointment);
+  }
+
+  private isRestrictedToOwnAppointments(user: AuthenticatedUser): boolean {
+    return (
+      user.roles.includes(UserRole.DOCTOR) &&
+      !user.roles.includes(UserRole.ADMIN)
+    );
+  }
+
+  private async findOwnDoctorId(
+    user: AuthenticatedUser,
+  ): Promise<number | null> {
+    const doctor = await this.doctorRepository.findByUserId(user.id);
+
+    return doctor?.id ?? null;
   }
 
   private resolveEndsAt(startsAt: Date, shifts: WorkShift[]): Date {
