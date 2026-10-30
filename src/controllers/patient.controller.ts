@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { Roles } from '../decorators/roles.decorator';
 import { CreatePatientDto } from '../dtos/create-patient.dto';
-import { ListPatientsQueryDto } from '../dtos/list-patients-query.dto';
+import { NameSearchQueryDto } from '../dtos/name-search-query.dto';
 import { PaginatedResponseDto } from '../dtos/paginated-response.dto';
 import { PatientResponseDto } from '../dtos/patient-response.dto';
 import { UpdatePatientDto } from '../dtos/update-patient.dto';
@@ -34,7 +34,7 @@ export class PatientController {
 
   @Get()
   public async findPage(
-    @Query() query: ListPatientsQueryDto,
+    @Query() query: NameSearchQueryDto,
   ): Promise<PaginatedResponseDto<PatientResponseDto>> {
     return this.patientService.findPage(query);
   }

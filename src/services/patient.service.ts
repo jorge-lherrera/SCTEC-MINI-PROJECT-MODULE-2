@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CreatePatientDto } from '../dtos/create-patient.dto';
-import { ListPatientsQueryDto } from '../dtos/list-patients-query.dto';
+import { NameSearchQueryDto } from '../dtos/name-search-query.dto';
 import { PaginatedResponseDto } from '../dtos/paginated-response.dto';
 import { PatientResponseDto } from '../dtos/patient-response.dto';
 import { UpdatePatientDto } from '../dtos/update-patient.dto';
@@ -28,7 +28,7 @@ export class PatientService {
   }
 
   public async findPage(
-    query: ListPatientsQueryDto,
+    query: NameSearchQueryDto,
   ): Promise<PaginatedResponseDto<PatientResponseDto>> {
     const [patients, total] = await this.patientRepository.findPage(
       query.name,
