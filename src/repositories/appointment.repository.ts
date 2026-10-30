@@ -1,5 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { EntityManager, LessThan, MoreThan, Not } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
+import {
+  And,
+  EntityManager,
+  FindOperator,
+  FindOptionsWhere,
+  LessThan,
+  MoreThan,
+  MoreThanOrEqual,
+  Not,
+  Repository,
+} from 'typeorm';
 import {
   APPOINTMENT_DOCTOR_PERIOD_EXCLUSION,
   APPOINTMENT_PATIENT_PERIOD_EXCLUSION,
@@ -9,6 +20,7 @@ import { AppointmentStatus } from '../entities/appointment-status.enum';
 import { DomainError } from '../errors/domain.error';
 import { ErrorCode } from '../errors/error-code.enum';
 import { isExclusionViolation } from '../utils/database-error.util';
+import { PageWindow } from '../utils/pagination.util';
 
 export type CreatableAppointment = Pick<
   Appointment,
@@ -20,8 +32,37 @@ export interface AppointmentPeriod {
   endsAt: Date;
 }
 
+export interface AppointmentFilter {
+  doctorId?: number;
+  patientId?: number;
+  status?: AppointmentStatus;
+  startsFrom?: Date;
+  startsBefore?: Date;
+}
+
 @Injectable()
 export class AppointmentRepository {
+  constructor(
+    @InjectRepository(Appointment)
+    private readonly repository: Repository<Appointment>,
+  ) {}
+
+  public async findById(id: number): Promise<Appointment | null> {
+    return this.repository.findOneBy({ id });
+  }
+
+  public async findPage(
+    filter: AppointmentFilter,
+    window: PageWindow,
+  ): Promise<[Appointment[], number]> {
+    return this.repository.findAndCount({
+      where: this.toWhere(filter),
+      order: { startsAt: 'ASC', id: 'ASC' },
+      skip: window.skip,
+      take: window.take,
+    });
+  }
+
   public async create(
     data: CreatableAppointment,
     manager: EntityManager,
@@ -67,6 +108,45 @@ export class AppointmentRepository {
     return manager
       .getRepository(Appointment)
       .existsBy({ patientId, ...this.activeOverlapWith(period) });
+  }
+
+  private toWhere(filter: AppointmentFilter): FindOptionsWhere<Appointment> {
+    const where: FindOptionsWhere<Appointment> = {};
+    const startsAt = this.toStartsAtRange(filter);
+
+    if (filter.doctorId !== undefined) {
+      where.doctorId = filter.doctorId;
+    }
+
+    if (filter.patientId !== undefined) {
+      where.patientId = filter.patientId;
+    }
+
+    if (filter.status !== undefined) {
+      where.status = filter.status;
+    }
+
+    if (startsAt !== undefined) {
+      where.startsAt = startsAt;
+    }
+
+    return where;
+  }
+
+  private toStartsAtRange(
+    filter: AppointmentFilter,
+  ): FindOperator<Date> | undefined {
+    const { startsFrom, startsBefore } = filter;
+
+    if (startsFrom !== undefined && startsBefore !== undefined) {
+      return And(MoreThanOrEqual(startsFrom), LessThan(startsBefore));
+    }
+
+    if (startsFrom !== undefined) {
+      return MoreThanOrEqual(startsFrom);
+    }
+
+    return startsBefore === undefined ? undefined : LessThan(startsBefore);
   }
 
   private activeOverlapWith(period: AppointmentPeriod) {

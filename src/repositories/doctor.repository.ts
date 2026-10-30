@@ -44,6 +44,10 @@ export class DoctorRepository {
     });
   }
 
+  public async findByUserId(userId: number): Promise<Doctor | null> {
+    return this.repository.findOneBy({ user: { id: userId } });
+  }
+
   public async lockById(
     id: number,
     manager: EntityManager,
