@@ -1,8 +1,11 @@
+import { plainToInstance } from 'class-transformer';
 import { EntityManager } from 'typeorm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TransactionRunner } from '../database/transaction-runner';
+import { ListAppointmentsQueryDto } from '../dtos/list-appointments-query.dto';
 import { Appointment } from '../entities/appointment.entity';
 import { AppointmentStatus } from '../entities/appointment-status.enum';
+import { UserRole } from '../entities/user-role.enum';
 import { WorkShift } from '../entities/work-shift.entity';
 import { ErrorCode } from '../errors/error-code.enum';
 import {
@@ -12,6 +15,7 @@ import {
 import { DoctorRepository } from '../repositories/doctor.repository';
 import { PatientRepository } from '../repositories/patient.repository';
 import { WorkShiftRepository } from '../repositories/work-shift.repository';
+import { AuthenticatedUser } from '../types/authenticated-user.interface';
 import { AppointmentService } from './appointment.service';
 
 const DOCTOR_ID = 3;
@@ -22,13 +26,15 @@ const TRANSACTION_MANAGER = { name: 'transaction' } as unknown as EntityManager;
 function createAppointmentRepositoryDouble() {
   return {
     create: vi.fn(),
+    findById: vi.fn(),
+    findPage: vi.fn(),
     hasActiveOverlapForDoctor: vi.fn(),
     hasActiveOverlapForPatient: vi.fn(),
   };
 }
 
 function createDoctorRepositoryDouble() {
-  return { lockById: vi.fn() };
+  return { lockById: vi.fn(), findByUserId: vi.fn() };
 }
 
 function createPatientRepositoryDouble() {
@@ -245,5 +251,186 @@ describe('AppointmentService.create', () => {
       appointmentService.create(request('2026-10-13T08:00:00-03:00')),
     ).rejects.toMatchObject({ code: ErrorCode.RECURSO_NAO_ENCONTRADO });
     expect(appointmentRepository.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('AppointmentService consultas', () => {
+  const ADMIN: AuthenticatedUser = { id: 1, roles: [UserRole.ADMIN] };
+  const SECRETARY: AuthenticatedUser = { id: 2, roles: [UserRole.SECRETARY] };
+  const DOCTOR_USER: AuthenticatedUser = { id: 7, roles: [UserRole.DOCTOR] };
+  const DOCTOR_ADMIN: AuthenticatedUser = {
+    id: 8,
+    roles: [UserRole.DOCTOR, UserRole.ADMIN],
+  };
+
+  let appointmentRepository: ReturnType<
+    typeof createAppointmentRepositoryDouble
+  >;
+  let doctorRepository: ReturnType<typeof createDoctorRepositoryDouble>;
+  let appointmentService: AppointmentService;
+
+  function appointment(overrides: Partial<Appointment> = {}): Appointment {
+    return {
+      id: 41,
+      doctorId: DOCTOR_ID,
+      patientId: PATIENT_ID,
+      startsAt: new Date('2026-10-13T11:00:00.000Z'),
+      endsAt: new Date('2026-10-13T11:30:00.000Z'),
+      status: AppointmentStatus.SCHEDULED,
+      ...overrides,
+    } as Appointment;
+  }
+
+  function query(values: Record<string, string> = {}): ListAppointmentsQueryDto {
+    return plainToInstance(ListAppointmentsQueryDto, values);
+  }
+
+  beforeEach(() => {
+    appointmentRepository = createAppointmentRepositoryDouble();
+    doctorRepository = createDoctorRepositoryDouble();
+    appointmentService = new AppointmentService(
+      appointmentRepository as unknown as AppointmentRepository,
+      doctorRepository as unknown as DoctorRepository,
+      createPatientRepositoryDouble() as unknown as PatientRepository,
+      createWorkShiftRepositoryDouble() as unknown as WorkShiftRepository,
+      createTransactionRunnerDouble() as unknown as TransactionRunner,
+    );
+    appointmentRepository.findPage.mockResolvedValue([[appointment()], 1]);
+    doctorRepository.findByUserId.mockResolvedValue({ id: DOCTOR_ID });
+  });
+
+  describe('findPage', () => {
+    it('combina os filtros e converte as datas em dias inteiros da clínica', async () => {
+      const response = await appointmentService.findPage(
+        query({
+          doctorId: '3',
+          patientId: '10',
+          status: 'scheduled',
+          from: '2026-10-13',
+          to: '2026-10-14',
+          pageSize: '5',
+          page: '2',
+        }),
+        SECRETARY,
+      );
+
+      expect(appointmentRepository.findPage).toHaveBeenCalledWith(
+        {
+          doctorId: 3,
+          patientId: 10,
+          status: AppointmentStatus.SCHEDULED,
+          startsFrom: new Date('2026-10-13T03:00:00.000Z'),
+          startsBefore: new Date('2026-10-15T03:00:00.000Z'),
+        },
+        { skip: 5, take: 5 },
+      );
+      expect(response.meta).toEqual({
+        total: 1,
+        page: 2,
+        pageSize: 5,
+        totalPages: 1,
+      });
+      expect(response.data[0].id).toBe(41);
+    });
+
+    it('não filtra por data quando a query não informa o período', async () => {
+      await appointmentService.findPage(query(), ADMIN);
+
+      const [filter] = appointmentRepository.findPage.mock.calls[0];
+      expect(filter.startsFrom).toBeUndefined();
+      expect(filter.startsBefore).toBeUndefined();
+      expect(doctorRepository.findByUserId).not.toHaveBeenCalled();
+    });
+
+    it('recusa data inicial posterior à final', async () => {
+      await expect(
+        appointmentService.findPage(
+          query({ from: '2026-10-14', to: '2026-10-13' }),
+          ADMIN,
+        ),
+      ).rejects.toMatchObject({ code: ErrorCode.DADOS_INVALIDOS });
+    });
+
+    it('força o filtro do próprio médico para quem é só doctor', async () => {
+      await appointmentService.findPage(query({ patientId: '10' }), DOCTOR_USER);
+
+      expect(doctorRepository.findByUserId).toHaveBeenCalledWith(7);
+      expect(appointmentRepository.findPage.mock.calls[0][0]).toMatchObject({
+        doctorId: DOCTOR_ID,
+        patientId: 10,
+      });
+    });
+
+    it('devolve lista vazia quando o doctor pede agendamentos de outro médico', async () => {
+      const response = await appointmentService.findPage(
+        query({ doctorId: '99' }),
+        DOCTOR_USER,
+      );
+
+      expect(response.data).toEqual([]);
+      expect(response.meta.total).toBe(0);
+      expect(appointmentRepository.findPage).not.toHaveBeenCalled();
+    });
+
+    it('devolve lista vazia para usuário doctor sem cadastro de médico', async () => {
+      doctorRepository.findByUserId.mockResolvedValue(null);
+
+      const response = await appointmentService.findPage(query(), DOCTOR_USER);
+
+      expect(response.data).toEqual([]);
+      expect(appointmentRepository.findPage).not.toHaveBeenCalled();
+    });
+
+    it('não restringe quem é doctor e admin ao mesmo tempo', async () => {
+      await appointmentService.findPage(query({ doctorId: '99' }), DOCTOR_ADMIN);
+
+      expect(appointmentRepository.findPage.mock.calls[0][0].doctorId).toBe(99);
+    });
+  });
+
+  describe('findById', () => {
+    it('lança recurso não encontrado para agendamento inexistente', async () => {
+      appointmentRepository.findById.mockResolvedValue(null);
+
+      await expect(
+        appointmentService.findById(99, ADMIN),
+      ).rejects.toMatchObject({ code: ErrorCode.RECURSO_NAO_ENCONTRADO });
+    });
+
+    it('devolve o agendamento para a secretaria', async () => {
+      appointmentRepository.findById.mockResolvedValue(appointment());
+
+      const response = await appointmentService.findById(41, SECRETARY);
+
+      expect(response.id).toBe(41);
+      expect(doctorRepository.findByUserId).not.toHaveBeenCalled();
+    });
+
+    it('devolve o agendamento ao médico responsável', async () => {
+      appointmentRepository.findById.mockResolvedValue(appointment());
+
+      await expect(
+        appointmentService.findById(41, DOCTOR_USER),
+      ).resolves.toMatchObject({ id: 41 });
+    });
+
+    it('nega acesso ao médico que não é o do agendamento', async () => {
+      appointmentRepository.findById.mockResolvedValue(
+        appointment({ doctorId: 99 }),
+      );
+
+      await expect(
+        appointmentService.findById(41, DOCTOR_USER),
+      ).rejects.toMatchObject({ code: ErrorCode.ACESSO_NEGADO });
+    });
+
+    it('nega acesso ao usuário doctor sem cadastro de médico', async () => {
+      appointmentRepository.findById.mockResolvedValue(appointment());
+      doctorRepository.findByUserId.mockResolvedValue(null);
+
+      await expect(
+        appointmentService.findById(41, DOCTOR_USER),
+      ).rejects.toMatchObject({ code: ErrorCode.ACESSO_NEGADO });
+    });
   });
 });

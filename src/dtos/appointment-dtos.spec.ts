@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { describe, expect, it } from 'vitest';
 import { CreateAppointmentDto } from './create-appointment.dto';
+import { ListAppointmentsQueryDto } from './list-appointments-query.dto';
 
 const VALID_APPOINTMENT = {
   doctorId: 3,
@@ -39,5 +40,38 @@ describe('CreateAppointmentDto', () => {
     { patientId: undefined },
   ])('recusa %o', (override) => {
     expect(isValid({ ...VALID_APPOINTMENT, ...override })).toBe(false);
+  });
+});
+
+describe('ListAppointmentsQueryDto', () => {
+  function parse(query: Partial<Record<string, string>>) {
+    const dto = plainToInstance(ListAppointmentsQueryDto, query);
+
+    return { dto, valid: validateSync(dto).length === 0 };
+  }
+
+  it('aceita todos os filtros combinados', () => {
+    const { dto, valid } = parse({
+      doctorId: '3',
+      patientId: '10',
+      status: 'in_progress',
+      from: '2026-10-13',
+      to: '2026-10-20',
+    });
+
+    expect(valid).toBe(true);
+    expect(dto.doctorId).toBe(3);
+    expect(dto.patientId).toBe(10);
+  });
+
+  it.each([
+    { doctorId: 'abc' },
+    { patientId: '0' },
+    { status: 'finished' },
+    { from: '13/10/2026' },
+    { from: '2026-02-30' },
+    { to: '2026-10-13T00:00:00Z' },
+  ])('recusa filtro inválido %o', (query) => {
+    expect(parse(query).valid).toBe(false);
   });
 });

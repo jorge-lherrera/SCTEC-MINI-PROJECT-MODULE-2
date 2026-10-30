@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toClinicLocalTime } from './clinic-time.util';
+import { startOfClinicDay, toClinicLocalTime } from './clinic-time.util';
 
 describe('toClinicLocalTime', () => {
   it.each([
@@ -13,5 +13,16 @@ describe('toClinicLocalTime', () => {
       weekDay,
       minuteOfDay,
     });
+  });
+});
+
+describe('startOfClinicDay', () => {
+  it.each([
+    ['2026-10-13', 0, '2026-10-13T03:00:00.000Z'],
+    ['2026-10-13', 1, '2026-10-14T03:00:00.000Z'],
+    ['2026-12-31', 1, '2027-01-01T03:00:00.000Z'],
+    ['2018-02-17', 1, '2018-02-18T03:00:00.000Z'],
+  ])('início do dia %s deslocado %i dia(s) é %s', (date, dayOffset, expected) => {
+    expect(startOfClinicDay(date, dayOffset).toISOString()).toBe(expected);
   });
 });
