@@ -6,6 +6,7 @@ import { dataSourceOptions } from './database/data-source';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { AuthModule } from './modules/auth.module';
+import { DoctorModule } from './modules/doctor.module';
 import { HealthModule } from './modules/health.module';
 import { PatientModule } from './modules/patient.module';
 import { UserModule } from './modules/user.module';
@@ -16,6 +17,7 @@ import { UserModule } from './modules/user.module';
     TypeOrmModule.forRoot(dataSourceOptions),
     UserModule,
     PatientModule,
+    DoctorModule,
     AuthModule,
     HealthModule,
   ],
