@@ -1,6 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ListPatientsQueryDto } from '../dtos/list-patients-query.dto';
+import { NameSearchQueryDto } from '../dtos/name-search-query.dto';
 import { Patient } from '../entities/patient.entity';
 import { ErrorCode } from '../errors/error-code.enum';
 import {
@@ -87,7 +87,7 @@ describe('PatientService', () => {
         [buildPatient(), buildPatient({ id: 11, name: 'Carla Souza' })],
         23,
       ]);
-      const query = plainToInstance(ListPatientsQueryDto, {
+      const query = plainToInstance(NameSearchQueryDto, {
         name: 'car',
         page: '2',
         pageSize: '10',

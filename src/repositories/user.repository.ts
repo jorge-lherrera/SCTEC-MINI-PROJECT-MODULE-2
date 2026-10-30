@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { USER_EMAIL_UNIQUE_CONSTRAINT, User } from '../entities/user.entity';
 import { DomainError } from '../errors/domain.error';
 import { ErrorCode } from '../errors/error-code.enum';
@@ -15,9 +15,14 @@ export class UserRepository {
     private readonly repository: Repository<User>,
   ) {}
 
-  public async create(data: CreatableUser): Promise<User> {
+  public async create(
+    data: CreatableUser,
+    manager?: EntityManager,
+  ): Promise<User> {
+    const repository = manager?.getRepository(User) ?? this.repository;
+
     try {
-      return await this.repository.save(this.repository.create(data));
+      return await repository.save(repository.create(data));
     } catch (error) {
       if (isUniqueViolation(error, USER_EMAIL_UNIQUE_CONSTRAINT)) {
         throw new DomainError(

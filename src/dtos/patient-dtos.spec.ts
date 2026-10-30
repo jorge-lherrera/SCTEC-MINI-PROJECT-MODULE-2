@@ -2,7 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { describe, expect, it } from 'vitest';
 import { CreatePatientDto } from './create-patient.dto';
-import { ListPatientsQueryDto } from './list-patients-query.dto';
+import { NameSearchQueryDto } from './name-search-query.dto';
 import { UpdatePatientDto } from './update-patient.dto';
 
 function isValid<T extends object>(
@@ -63,9 +63,9 @@ describe('UpdatePatientDto', () => {
   );
 });
 
-describe('ListPatientsQueryDto', () => {
+describe('NameSearchQueryDto', () => {
   it('aceita a busca por nome junto da paginação', () => {
-    const query = plainToInstance(ListPatientsQueryDto, {
+    const query = plainToInstance(NameSearchQueryDto, {
       name: ' carl ',
       pageSize: '5',
     });
