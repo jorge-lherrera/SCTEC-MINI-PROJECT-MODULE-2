@@ -4,6 +4,8 @@ import { AppointmentResponseDto } from '../dtos/appointment-response.dto';
 import { CreateAppointmentDto } from '../dtos/create-appointment.dto';
 import { ListAppointmentsQueryDto } from '../dtos/list-appointments-query.dto';
 import { PaginatedResponseDto } from '../dtos/paginated-response.dto';
+import { UpdateAppointmentStatusDto } from '../dtos/update-appointment-status.dto';
+import { Appointment } from '../entities/appointment.entity';
 import { AppointmentStatus } from '../entities/appointment-status.enum';
 import { UserRole } from '../entities/user-role.enum';
 import { WorkShift } from '../entities/work-shift.entity';
@@ -22,6 +24,25 @@ import { clockTimeToMinutes } from '../utils/clock-time.util';
 import { toPageWindow } from '../utils/pagination.util';
 
 const MILLISECONDS_PER_MINUTE = 60_000;
+
+const STATUS_TRANSITIONS: Readonly<
+  Record<AppointmentStatus, Partial<Record<AppointmentStatus, UserRole[]>>>
+> = {
+  [AppointmentStatus.SCHEDULED]: {
+    [AppointmentStatus.IN_PROGRESS]: [UserRole.DOCTOR, UserRole.ADMIN],
+    [AppointmentStatus.CANCELLED]: [
+      UserRole.ADMIN,
+      UserRole.SECRETARY,
+      UserRole.DOCTOR,
+    ],
+  },
+  [AppointmentStatus.IN_PROGRESS]: {
+    [AppointmentStatus.DONE]: [UserRole.DOCTOR, UserRole.ADMIN],
+    [AppointmentStatus.CANCELLED]: [UserRole.ADMIN, UserRole.DOCTOR],
+  },
+  [AppointmentStatus.DONE]: {},
+  [AppointmentStatus.CANCELLED]: {},
+};
 
 @Injectable()
 export class AppointmentService {
@@ -155,24 +176,75 @@ export class AppointmentService {
       throw this.notFound('Agendamento não encontrado.');
     }
 
+    await this.requireRolesOnAppointment(appointment, user);
+
+    return new AppointmentResponseDto(appointment);
+  }
+
+  public async changeStatus(
+    id: number,
+    data: UpdateAppointmentStatusDto,
+    user: AuthenticatedUser,
+  ): Promise<AppointmentResponseDto> {
+    const appointment = await this.transactionRunner.run(async (manager) => {
+      const current = await this.appointmentRepository.lockById(id, manager);
+
+      if (current === null) {
+        throw this.notFound('Agendamento não encontrado.');
+      }
+
+      const actingRoles = await this.requireRolesOnAppointment(current, user);
+      const allowedRoles = STATUS_TRANSITIONS[current.status][data.status];
+
+      if (allowedRoles === undefined) {
+        throw new DomainError(
+          ErrorCode.TRANSICAO_INVALIDA,
+          `O agendamento não pode passar de ${current.status} para ${data.status}.`,
+        );
+      }
+
+      if (!allowedRoles.some((role) => actingRoles.includes(role))) {
+        throw new DomainError(
+          ErrorCode.ACESSO_NEGADO,
+          'Seu perfil não pode fazer essa mudança de status.',
+        );
+      }
+
+      current.status = data.status;
+
+      return this.appointmentRepository.save(current, manager);
+    });
+
+    return new AppointmentResponseDto(appointment);
+  }
+
+  private isRestrictedToOwnAppointments(user: AuthenticatedUser): boolean {
+    return user.roles.every((role) => role === UserRole.DOCTOR);
+  }
+
+  private async requireRolesOnAppointment(
+    appointment: Appointment,
+    user: AuthenticatedUser,
+  ): Promise<UserRole[]> {
+    const roles: UserRole[] = user.roles.filter(
+      (role) => role !== UserRole.DOCTOR,
+    );
+
     if (
-      this.isRestrictedToOwnAppointments(user) &&
-      (await this.findOwnDoctorId(user)) !== appointment.doctorId
+      user.roles.includes(UserRole.DOCTOR) &&
+      (await this.findOwnDoctorId(user)) === appointment.doctorId
     ) {
+      roles.push(UserRole.DOCTOR);
+    }
+
+    if (roles.length === 0) {
       throw new DomainError(
         ErrorCode.ACESSO_NEGADO,
         'O agendamento pertence a outro médico.',
       );
     }
 
-    return new AppointmentResponseDto(appointment);
-  }
-
-  private isRestrictedToOwnAppointments(user: AuthenticatedUser): boolean {
-    return (
-      user.roles.includes(UserRole.DOCTOR) &&
-      !user.roles.includes(UserRole.ADMIN)
-    );
+    return roles;
   }
 
   private async findOwnDoctorId(

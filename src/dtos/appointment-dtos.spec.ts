@@ -3,6 +3,7 @@ import { validateSync } from 'class-validator';
 import { describe, expect, it } from 'vitest';
 import { CreateAppointmentDto } from './create-appointment.dto';
 import { ListAppointmentsQueryDto } from './list-appointments-query.dto';
+import { UpdateAppointmentStatusDto } from './update-appointment-status.dto';
 
 const VALID_APPOINTMENT = {
   doctorId: 3,
@@ -73,5 +74,30 @@ describe('ListAppointmentsQueryDto', () => {
     { to: '2026-10-13T00:00:00Z' },
   ])('recusa filtro inválido %o', (query) => {
     expect(parse(query).valid).toBe(false);
+  });
+});
+
+describe('UpdateAppointmentStatusDto', () => {
+  function isValidStatus(payload: Record<string, unknown>): boolean {
+    return (
+      validateSync(plainToInstance(UpdateAppointmentStatusDto, payload))
+        .length === 0
+    );
+  }
+
+  it.each(['scheduled', 'in_progress', 'done', 'cancelled'])(
+    'aceita o status %s',
+    (status) => {
+      expect(isValidStatus({ status })).toBe(true);
+    },
+  );
+
+  it.each([
+    { status: 'finished' },
+    { status: 'IN_PROGRESS' },
+    { status: null },
+    {},
+  ])('recusa %o', (payload) => {
+    expect(isValidStatus(payload)).toBe(false);
   });
 });

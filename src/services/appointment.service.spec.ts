@@ -22,15 +22,40 @@ const DOCTOR_ID = 3;
 const PATIENT_ID = 10;
 const TUESDAY = 2;
 const TRANSACTION_MANAGER = { name: 'transaction' } as unknown as EntityManager;
+const ADMIN: AuthenticatedUser = { id: 1, roles: [UserRole.ADMIN] };
+const SECRETARY: AuthenticatedUser = { id: 2, roles: [UserRole.SECRETARY] };
+const DOCTOR_USER: AuthenticatedUser = { id: 7, roles: [UserRole.DOCTOR] };
+const DOCTOR_ADMIN: AuthenticatedUser = {
+  id: 8,
+  roles: [UserRole.DOCTOR, UserRole.ADMIN],
+};
+const DOCTOR_SECRETARY: AuthenticatedUser = {
+  id: 9,
+  roles: [UserRole.DOCTOR, UserRole.SECRETARY],
+};
 
 function createAppointmentRepositoryDouble() {
   return {
     create: vi.fn(),
     findById: vi.fn(),
     findPage: vi.fn(),
+    lockById: vi.fn(),
+    save: vi.fn(),
     hasActiveOverlapForDoctor: vi.fn(),
     hasActiveOverlapForPatient: vi.fn(),
   };
+}
+
+function appointment(overrides: Partial<Appointment> = {}): Appointment {
+  return {
+    id: 41,
+    doctorId: DOCTOR_ID,
+    patientId: PATIENT_ID,
+    startsAt: new Date('2026-10-13T11:00:00.000Z'),
+    endsAt: new Date('2026-10-13T11:30:00.000Z'),
+    status: AppointmentStatus.SCHEDULED,
+    ...overrides,
+  } as Appointment;
 }
 
 function createDoctorRepositoryDouble() {
@@ -255,31 +280,11 @@ describe('AppointmentService.create', () => {
 });
 
 describe('AppointmentService consultas', () => {
-  const ADMIN: AuthenticatedUser = { id: 1, roles: [UserRole.ADMIN] };
-  const SECRETARY: AuthenticatedUser = { id: 2, roles: [UserRole.SECRETARY] };
-  const DOCTOR_USER: AuthenticatedUser = { id: 7, roles: [UserRole.DOCTOR] };
-  const DOCTOR_ADMIN: AuthenticatedUser = {
-    id: 8,
-    roles: [UserRole.DOCTOR, UserRole.ADMIN],
-  };
-
   let appointmentRepository: ReturnType<
     typeof createAppointmentRepositoryDouble
   >;
   let doctorRepository: ReturnType<typeof createDoctorRepositoryDouble>;
   let appointmentService: AppointmentService;
-
-  function appointment(overrides: Partial<Appointment> = {}): Appointment {
-    return {
-      id: 41,
-      doctorId: DOCTOR_ID,
-      patientId: PATIENT_ID,
-      startsAt: new Date('2026-10-13T11:00:00.000Z'),
-      endsAt: new Date('2026-10-13T11:30:00.000Z'),
-      status: AppointmentStatus.SCHEDULED,
-      ...overrides,
-    } as Appointment;
-  }
 
   function query(values: Record<string, string> = {}): ListAppointmentsQueryDto {
     return plainToInstance(ListAppointmentsQueryDto, values);
@@ -381,11 +386,16 @@ describe('AppointmentService consultas', () => {
       expect(appointmentRepository.findPage).not.toHaveBeenCalled();
     });
 
-    it('não restringe quem é doctor e admin ao mesmo tempo', async () => {
-      await appointmentService.findPage(query({ doctorId: '99' }), DOCTOR_ADMIN);
+    it.each([DOCTOR_ADMIN, DOCTOR_SECRETARY])(
+      'não restringe quem também tem outro perfil (%o)',
+      async (user) => {
+        await appointmentService.findPage(query({ doctorId: '99' }), user);
 
-      expect(appointmentRepository.findPage.mock.calls[0][0].doctorId).toBe(99);
-    });
+        expect(appointmentRepository.findPage.mock.calls[0][0].doctorId).toBe(
+          99,
+        );
+      },
+    );
   });
 
   describe('findById', () => {
@@ -431,6 +441,168 @@ describe('AppointmentService consultas', () => {
       await expect(
         appointmentService.findById(41, DOCTOR_USER),
       ).rejects.toMatchObject({ code: ErrorCode.ACESSO_NEGADO });
+    });
+
+    it('devolve agendamento de outro médico a quem também é secretaria', async () => {
+      appointmentRepository.findById.mockResolvedValue(
+        appointment({ doctorId: 99 }),
+      );
+
+      await expect(
+        appointmentService.findById(41, DOCTOR_SECRETARY),
+      ).resolves.toMatchObject({ id: 41 });
+    });
+  });
+});
+
+describe('AppointmentService.changeStatus', () => {
+  const { SCHEDULED, IN_PROGRESS, DONE, CANCELLED } = AppointmentStatus;
+
+  let appointmentRepository: ReturnType<
+    typeof createAppointmentRepositoryDouble
+  >;
+  let doctorRepository: ReturnType<typeof createDoctorRepositoryDouble>;
+  let transactionRunner: ReturnType<typeof createTransactionRunnerDouble>;
+  let appointmentService: AppointmentService;
+
+  function changeStatus(
+    status: AppointmentStatus,
+    user: AuthenticatedUser,
+  ): Promise<unknown> {
+    return appointmentService.changeStatus(41, { status }, user);
+  }
+
+  beforeEach(() => {
+    appointmentRepository = createAppointmentRepositoryDouble();
+    doctorRepository = createDoctorRepositoryDouble();
+    transactionRunner = createTransactionRunnerDouble();
+    appointmentService = new AppointmentService(
+      appointmentRepository as unknown as AppointmentRepository,
+      doctorRepository as unknown as DoctorRepository,
+      createPatientRepositoryDouble() as unknown as PatientRepository,
+      createWorkShiftRepositoryDouble() as unknown as WorkShiftRepository,
+      transactionRunner as unknown as TransactionRunner,
+    );
+    appointmentRepository.lockById.mockResolvedValue(appointment());
+    appointmentRepository.save.mockImplementation(
+      async (saved: Appointment): Promise<Appointment> => saved,
+    );
+    doctorRepository.findByUserId.mockResolvedValue({ id: DOCTOR_ID });
+  });
+
+  it.each([
+    [SCHEDULED, IN_PROGRESS, 'o médico da consulta', DOCTOR_USER],
+    [SCHEDULED, IN_PROGRESS, 'a administração', ADMIN],
+    [SCHEDULED, CANCELLED, 'a secretaria', SECRETARY],
+    [SCHEDULED, CANCELLED, 'a administração', ADMIN],
+    [SCHEDULED, CANCELLED, 'o médico da consulta', DOCTOR_USER],
+    [IN_PROGRESS, DONE, 'o médico da consulta', DOCTOR_USER],
+    [IN_PROGRESS, DONE, 'a administração', ADMIN],
+    [IN_PROGRESS, CANCELLED, 'a administração', ADMIN],
+    [IN_PROGRESS, CANCELLED, 'o médico da consulta', DOCTOR_USER],
+  ])('%s → %s feita por %s', async (from, to, _actor, user) => {
+    appointmentRepository.lockById.mockResolvedValue(
+      appointment({ status: from }),
+    );
+
+    await expect(changeStatus(to, user)).resolves.toMatchObject({
+      id: 41,
+      status: to,
+    });
+    expect(appointmentRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ status: to }),
+      TRANSACTION_MANAGER,
+    );
+  });
+
+  it('trava o agendamento dentro da transação antes de decidir', async () => {
+    await changeStatus(IN_PROGRESS, ADMIN);
+
+    expect(transactionRunner.run).toHaveBeenCalledOnce();
+    expect(appointmentRepository.lockById).toHaveBeenCalledWith(
+      41,
+      TRANSACTION_MANAGER,
+    );
+  });
+
+  it.each([
+    [SCHEDULED, DONE],
+    [SCHEDULED, SCHEDULED],
+    [IN_PROGRESS, SCHEDULED],
+    [IN_PROGRESS, IN_PROGRESS],
+    [DONE, CANCELLED],
+    [DONE, IN_PROGRESS],
+    [CANCELLED, SCHEDULED],
+    [CANCELLED, CANCELLED],
+  ])('recusa a transição %s → %s fora do ciclo de vida', async (from, to) => {
+    appointmentRepository.lockById.mockResolvedValue(
+      appointment({ status: from }),
+    );
+
+    await expect(changeStatus(to, ADMIN)).rejects.toMatchObject({
+      code: ErrorCode.TRANSICAO_INVALIDA,
+    });
+    expect(appointmentRepository.save).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [SCHEDULED, IN_PROGRESS],
+    [IN_PROGRESS, DONE],
+    [IN_PROGRESS, CANCELLED],
+  ])('nega à secretaria a transição %s → %s', async (from, to) => {
+    appointmentRepository.lockById.mockResolvedValue(
+      appointment({ status: from }),
+    );
+
+    await expect(changeStatus(to, SECRETARY)).rejects.toMatchObject({
+      code: ErrorCode.ACESSO_NEGADO,
+    });
+    expect(appointmentRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('nega ao médico que não é o da consulta, mesmo em transição fora do ciclo', async () => {
+    appointmentRepository.lockById.mockResolvedValue(
+      appointment({ doctorId: 99, status: DONE }),
+    );
+
+    await expect(changeStatus(SCHEDULED, DOCTOR_USER)).rejects.toMatchObject({
+      code: ErrorCode.ACESSO_NEGADO,
+    });
+  });
+
+  it('nega ao usuário doctor sem cadastro de médico', async () => {
+    doctorRepository.findByUserId.mockResolvedValue(null);
+
+    await expect(changeStatus(CANCELLED, DOCTOR_USER)).rejects.toMatchObject({
+      code: ErrorCode.ACESSO_NEGADO,
+    });
+  });
+
+  it('deixa quem é doctor e admin agir em consulta de outro médico como admin', async () => {
+    appointmentRepository.lockById.mockResolvedValue(
+      appointment({ doctorId: 99 }),
+    );
+
+    await expect(changeStatus(IN_PROGRESS, DOCTOR_ADMIN)).resolves.toMatchObject(
+      { status: IN_PROGRESS },
+    );
+  });
+
+  it('nega a quem é doctor e secretaria iniciar consulta de outro médico', async () => {
+    appointmentRepository.lockById.mockResolvedValue(
+      appointment({ doctorId: 99 }),
+    );
+
+    await expect(
+      changeStatus(IN_PROGRESS, DOCTOR_SECRETARY),
+    ).rejects.toMatchObject({ code: ErrorCode.ACESSO_NEGADO });
+  });
+
+  it('lança recurso não encontrado para agendamento inexistente', async () => {
+    appointmentRepository.lockById.mockResolvedValue(null);
+
+    await expect(changeStatus(CANCELLED, ADMIN)).rejects.toMatchObject({
+      code: ErrorCode.RECURSO_NAO_ENCONTRADO,
     });
   });
 });
