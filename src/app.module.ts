@@ -7,6 +7,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { AppointmentModule } from './modules/appointment.module';
 import { AuthModule } from './modules/auth.module';
+import { DoctorCalendarModule } from './modules/doctor-calendar.module';
 import { DoctorModule } from './modules/doctor.module';
 import { HealthModule } from './modules/health.module';
 import { PatientModule } from './modules/patient.module';
@@ -22,6 +23,7 @@ import { WorkScheduleModule } from './modules/work-schedule.module';
     DoctorModule,
     WorkScheduleModule,
     AppointmentModule,
+    DoctorCalendarModule,
     AuthModule,
     HealthModule,
   ],
