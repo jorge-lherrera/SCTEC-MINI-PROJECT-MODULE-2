@@ -1,0 +1,1 @@
+export const MAX_IDENTITY_VALUE = 2_147_483_647;

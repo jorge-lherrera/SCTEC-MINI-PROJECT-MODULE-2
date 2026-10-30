@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { dataSourceOptions } from './database/data-source';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { AppointmentModule } from './modules/appointment.module';
 import { AuthModule } from './modules/auth.module';
 import { DoctorModule } from './modules/doctor.module';
 import { HealthModule } from './modules/health.module';
@@ -20,6 +21,7 @@ import { WorkScheduleModule } from './modules/work-schedule.module';
     PatientModule,
     DoctorModule,
     WorkScheduleModule,
+    AppointmentModule,
     AuthModule,
     HealthModule,
   ],

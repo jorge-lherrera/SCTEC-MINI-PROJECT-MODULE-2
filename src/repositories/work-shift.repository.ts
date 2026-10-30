@@ -29,8 +29,13 @@ export class WorkShiftRepository {
     );
   }
 
-  public async findByDoctorId(doctorId: number): Promise<WorkShift[]> {
-    return this.repository.find({
+  public async findByDoctorId(
+    doctorId: number,
+    manager?: EntityManager,
+  ): Promise<WorkShift[]> {
+    const repository = manager?.getRepository(WorkShift) ?? this.repository;
+
+    return repository.find({
       where: { doctorId },
       order: { weekDay: 'ASC', startTime: 'ASC' },
     });
