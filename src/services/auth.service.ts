@@ -8,7 +8,7 @@ import { ErrorCode } from '../errors/error-code.enum';
 import { UserRepository } from '../repositories/user.repository';
 import { normalizeEmail } from '../utils/email.util';
 import { verifyPassword } from '../utils/hash.util';
-import { JwtPayload } from '../utils/jwt-payload.interface';
+import { JwtPayload } from '../types/jwt-payload.interface';
 
 @Injectable()
 export class AuthService {
