@@ -5,6 +5,7 @@ import {
   EntityManager,
   FindOperator,
   FindOptionsWhere,
+  In,
   LessThan,
   MoreThan,
   MoreThanOrEqual,
@@ -115,6 +116,18 @@ export class AppointmentRepository {
 
       throw error;
     }
+  }
+
+  public async existsForDoctorAndPatient(
+    doctorId: number,
+    patientId: number,
+    statuses: AppointmentStatus[],
+  ): Promise<boolean> {
+    return this.repository.existsBy({
+      doctorId,
+      patientId,
+      status: In(statuses),
+    });
   }
 
   public async hasActiveOverlapForDoctor(

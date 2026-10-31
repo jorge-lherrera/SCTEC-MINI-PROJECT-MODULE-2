@@ -40,6 +40,10 @@ export class PatientRepository {
     return this.repository.findOneBy({ id });
   }
 
+  public async existsById(id: number): Promise<boolean> {
+    return this.repository.existsBy({ id });
+  }
+
   public async lockById(
     id: number,
     manager: EntityManager,
