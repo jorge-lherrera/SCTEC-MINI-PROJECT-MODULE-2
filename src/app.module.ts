@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth.module';
 import { DoctorCalendarModule } from './modules/doctor-calendar.module';
 import { DoctorModule } from './modules/doctor.module';
 import { HealthModule } from './modules/health.module';
+import { MedicalRecordModule } from './modules/medical-record.module';
 import { PatientModule } from './modules/patient.module';
 import { UserModule } from './modules/user.module';
 import { WorkScheduleModule } from './modules/work-schedule.module';
@@ -24,6 +25,7 @@ import { WorkScheduleModule } from './modules/work-schedule.module';
     WorkScheduleModule,
     AppointmentModule,
     DoctorCalendarModule,
+    MedicalRecordModule,
     AuthModule,
     HealthModule,
   ],
