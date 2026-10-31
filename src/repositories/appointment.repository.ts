@@ -80,6 +80,16 @@ export class AppointmentRepository {
     });
   }
 
+  public async findActiveForDoctorInPeriod(
+    doctorId: number,
+    period: AppointmentPeriod,
+  ): Promise<Appointment[]> {
+    return this.repository.find({
+      where: { doctorId, ...this.activeOverlapWith(period) },
+      order: { startsAt: 'ASC', id: 'ASC' },
+    });
+  }
+
   public async create(
     data: CreatableAppointment,
     manager: EntityManager,
