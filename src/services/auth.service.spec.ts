@@ -5,7 +5,7 @@ import { UserRole } from '../entities/user-role.enum';
 import { ErrorCode } from '../errors/error-code.enum';
 import { UserRepository } from '../repositories/user.repository';
 import { hashPassword } from '../utils/hash.util';
-import { JwtPayload } from '../utils/jwt-payload.interface';
+import { JwtPayload } from '../types/jwt-payload.interface';
 import { AuthService } from './auth.service';
 
 const PLAIN_PASSWORD = 'SenhaForte@123';

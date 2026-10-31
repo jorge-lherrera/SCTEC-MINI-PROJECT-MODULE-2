@@ -6,7 +6,7 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { DomainError } from '../errors/domain.error';
 import { ErrorCode } from '../errors/error-code.enum';
 import { AuthenticatedUser } from '../types/authenticated-user.interface';
-import { JwtPayload } from '../utils/jwt-payload.interface';
+import { JwtPayload } from '../types/jwt-payload.interface';
 
 const BEARER_PREFIX = 'Bearer ';
 
